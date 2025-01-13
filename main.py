@@ -4,7 +4,7 @@ import re
 app = Flask(__name__)
 
 def load_wordlist():
-    with open("wordlist.txt", "r") as file:
+    with open("seclist.txt", "r") as file:
         return [line.strip().lower() for line in file.readlines()]
 
 # Load wordlist on startup
