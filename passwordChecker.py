@@ -1,6 +1,6 @@
 def passwordChecker(password):
     #kriteria
-    caps = any(c.isupper() for c in password)  # Apakah ada huruf kapital
+    caps =  (c.isupper() for c in password)  # Apakah ada huruf kapital
     nums = any(c.isdigit() for c in password)  # Apakah ada angka
     symb = any(c in '!@#$%^&' for c in password)  # Apakah ada simbol
     length_valid = len(password) >= 8  # Panjang password cukup
