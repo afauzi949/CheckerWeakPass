@@ -1,19 +1,29 @@
 def passwordChecker(password):
-    #kriteria
-    caps = any(c.isupper() for c in password)  # Apakah ada huruf kapital
-    lowr = any(c.islower() for c in password)  # Apakah ada huruf kecil
-    nums = any(c.isdigit() for c in password)  # Apakah ada angka
-    symb = any(c in '!@#$%^&' for c in password)  # Apakah ada simbol
-    length_valid = len(password) >= 8  # Panjang password cukup
+    # Kriteria
+    caps = any(c.isupper() for c in password)  # Apakah ada karakter kapital
+    lowr = any(c.islower() for c in password)  # Apakah ada karakter kecil
+    nums = any(c.isdigit() for c in password)  # Apakah ada karakter angka
+    symb = any(c in '!@#$%^&' for c in password)  # Apakah ada karakter simbol
+    length_Mediumvalid = len(password) >= 8  # Panjang minimal 8 untuk valid
+    length_Strongvalid = len(password) >= 12  # Panjang minimal 12 untuk strong
 
-    # Return True jika semua kriteria terpenuhi
-    return caps and lowr and nums and symb and length_valid
+    # Return "Strong" jika semua kriteria terpenuhi dan panjang >= 12
+    if caps and lowr and nums and symb and length_Strongvalid:
+        return "Strong"
+    # Return "Medium" jika semua kriteria terpenuhi tetapi panjang < 12
+    elif caps and lowr and nums and symb and length_Mediumvalid:
+        return "Medium"
+    else:
+        return "Weak"
 
 # Input dari pengguna
 password = input("Masukkan password anda: ")
 
 # Validasi password
-if passwordChecker(password):
-    print("Password valid!")
+status = passwordChecker(password)
+if status == "Strong":
+    print("Password sangat kuat! (Strong)")
+elif status == "Medium":
+    print("Password cukup kuat. (Medium)")
 else:
-    print("Password tidak valid. Pastikan memenuhi semua kriteria.")
+    print("Password terlalu lemah. Pastikan memenuhi semua kriteria.")
