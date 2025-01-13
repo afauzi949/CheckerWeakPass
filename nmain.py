@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import re
 import hashlib
 import requests
+import string
 
 app = Flask(__name__)
 
@@ -33,24 +34,12 @@ def check_pwned_password(password):
             for line in response.text.splitlines():
                 hash_suffix, count = line.split(':')
                 if hash_suffix == suffix:
-                    return {
-                        'compromised': True,
-                        'count': int(count),
-                        'message': f'This password has been exposed in {count} data breaches'
-                    }
+                    return f'This password has been exposed in {count} data breaches.'
             
-            return {
-                'compromised': False,
-                'count': 0,
-                'message': 'This password hasn\'t been found in any known data breaches'
-            }
+            return 'This password hasn\'t been found in any known data breaches.'
             
     except Exception as e:
-        return {
-            'compromised': False,
-            'count': 0,
-            'message': 'Unable to check password breach status'
-        }
+        return 'Unable to check password breach status.'
 
 # Function to check password strength
 def check_password_strength(password):
@@ -62,7 +51,7 @@ def check_password_strength(password):
         return "Password should contain at least one lowercase letter."
     if not re.search(r'[0-9]', password):
         return "Password should contain at least one number."
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+    if not any(char in string.punctuation for char in password):
         return "Password should contain at least one special character."
     if re.search(r'(password|1234|qwerty)', password, re.IGNORECASE):
         return "Password should not contain easily guessable patterns."
@@ -81,14 +70,16 @@ def check_password():
     wordlist_result = check_wordlist(password)
 
     # Check if password has been exposed in data breaches
-    pwned_result = check_pwned_password(password) 
+    pwned_result = check_pwned_password(password)
 
-    # Combine both results
+    # Combine all results into a single response dictionary
     result = {
-        "password": password,
-        "strength": strength_result,
-        "wordlist_check": wordlist_result,
-        "breach_check": pwned_result
+        "check_results": {
+            "strength_check": strength_result,
+            "wordlist_check": wordlist_result,
+            "breach_check": pwned_result,
+            "password": password
+        }
     }
 
     # Return the result as JSON
