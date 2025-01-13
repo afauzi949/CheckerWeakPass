@@ -1,3 +1,5 @@
+import string
+
 def load_seclist(file_path):
     # Memuat password dari seclist (file txt)
     with open(file_path, 'r') as file:
@@ -8,7 +10,7 @@ def passwordChecker(password, seclist):
     caps = any(c.isupper() for c in password)  # Apakah ada karakter kapital
     lowr = any(c.islower() for c in password)  # Apakah ada karakter kecil
     nums = any(c.isdigit() for c in password)  # Apakah ada karakter angka
-    symb = any(c in '!@#$%^&' for c in password)  # Apakah ada karakter simbol
+    symb = any(c in string.punctuation for c in password)  # Apakah ada karakter simbol
     length_Mediumvalid = len(password) >= 8  # Panjang minimal 8 untuk valid
     length_Strongvalid = len(password) >= 12  # Panjang minimal 12 untuk strong
 
