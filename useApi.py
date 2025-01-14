@@ -21,7 +21,8 @@ try:
         result = response.json()
         # Extract the check_results from the response
         check_results = result.get('check_results', {})
-
+        
+        print()
         print("Hasil pengecekan password:")
         print(f"Password: {check_results.get('password')}")
         print(f"Strength: {check_results.get('strength_check')}")
