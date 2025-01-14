@@ -43,17 +43,21 @@ def check_pwned_password(password):
 
 # Function to check password strength
 def check_password_strength(password):
-    if len(password) < 8:
-        return "Password should be at least 8 characters long."
+    if len(password) < 12:
+        return "Password should be at least 12 characters long."
     if not re.search(r'[A-Z]', password):
         return "Password should contain at least one uppercase letter."
     if not re.search(r'[a-z]', password):
         return "Password should contain at least one lowercase letter."
     if not re.search(r'[0-9]', password):
         return "Password should contain at least one number."
+    if not re.search(r'(.)\1{5,}', password):
+        return "Password mengandung karakter ganda terlalu banyak"
+    if not re.search(re.search(r'(012|123|234|345|456|567|678|789|987|876|765|654|543|432|321)', password)):
+        return "Password mengandung angka urut"
     if not any(char in string.punctuation for char in password):
         return "Password should contain at least one special character."
-    if re.search(r'(password|1234|qwerty)', password, re.IGNORECASE):
+    if re.search(r'(password|1234|qwerty|admin)', password, re.IGNORECASE):
         return "Password should not contain easily guessable patterns."
     return "Password is strong."
 
