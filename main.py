@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify
 import re
+import hashlib
+import requests
 import string
 
 app = Flask(__name__)
@@ -17,6 +19,28 @@ def check_wordlist(password):
         return "Password is too common. Avoid using dictionary words."
     return "Password is not in the wordlist."
 
+# Function to check if password has been exposed in data breaches
+def check_pwned_password(password):
+    try:
+        # Create SHA-1 hash of the password
+        sha1_pass = hashlib.sha1(password.encode()).hexdigest().upper()
+        prefix, suffix = sha1_pass[:5], sha1_pass[5:]
+        
+        # Query the API
+        response = requests.get(f'https://api.pwnedpasswords.com/range/{prefix}')
+        
+        if response.status_code == 200:
+            # Check if password hash exists in the response
+            for line in response.text.splitlines():
+                hash_suffix, count = line.split(':')
+                if hash_suffix == suffix:
+                    return f'This password has been exposed in {count} data breaches.'
+            
+            return 'This password hasn\'t been found in any known data breaches.'
+            
+    except Exception as e:
+        return 'Unable to check password breach status.'
+
 # Function to check password strength
 def check_password_strength(password):
     if len(password) < 8:
@@ -27,8 +51,12 @@ def check_password_strength(password):
         return "Password should contain at least one lowercase letter."
     if not re.search(r'[0-9]', password):
         return "Password should contain at least one number."
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+    if not any(char in string.punctuation for char in password):
         return "Password should contain at least one special character."
+    if not re.search(r'(.)\1{5,}', password):
+        return "Password mengandung karakter ganda terlalu banyak"
+    if not re.search(re.search(r'(012|123|234|345|456|567|678|789|987|876|765|654|543|432|321)', password)):
+        return "Password mengandung angka urut"
     if re.search(r'(password|1234|qwerty)', password, re.IGNORECASE):
         return "Password should not contain easily guessable patterns."
     return "Password is strong."
@@ -45,11 +73,17 @@ def check_password():
     # Check password against wordlist
     wordlist_result = check_wordlist(password)
 
-    # Combine both results
+    # Check if password has been exposed in data breaches
+    pwned_result = check_pwned_password(password)
+
+    # Combine all results into a single response dictionary
     result = {
-        "password": password,
-        "strength": strength_result,
-        "wordlist_check": wordlist_result
+        "check_results": {
+            "strength_check": strength_result,
+            "wordlist_check": wordlist_result,
+            "breach_check": pwned_result,
+            "password": password
+        }
     }
 
     # Return the result as JSON
