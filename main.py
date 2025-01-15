@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 import re
-import requests
 import string
 import sqlite3
 
@@ -26,8 +25,8 @@ def check_wordlist(password):
     for word in wordlist:
         # Check if the word is part of the password
         if re.search(rf"{re.escape(word)}", password.lower()):
-            return f"Password contains a restricted word: {word}."
-    return "Password does not contain any restricted words."
+            return False  # Password contains a restricted word
+    return True  # Password does not contain any restricted words
 
 # Function to check password strength with detailed feedback
 def check_password_strength(password):
@@ -48,8 +47,8 @@ def check_password_strength(password):
     if re.search(r'(012|123|234|345|456|567|678|789|987|876|765|654|543|432|321)', password):
         errors.append("Password contains sequential numbers.")
     if errors:
-        return "Password is weak. Issues: " + " | ".join(errors)
-    return "Password is strong."
+        return False, errors  # Password is weak
+    return True, []  # Password is strong
 
 # Route to check password strength and wordlist comparison
 @app.route('/check_password', methods=['POST'])
@@ -58,17 +57,33 @@ def check_password():
     password = data.get('password', '')
 
     # Validate password strength
-    strength_result = check_password_strength(password)
+    strength_is_valid, strength_errors = check_password_strength(password)
+
+    # Generate strength_check message
+    if strength_is_valid:
+        strength_check_message = "Password is strong."
+    else:
+        strength_check_message = "Password is weak. Issues: " + " | ".join(strength_errors)
 
     # Check password against wordlist
-    wordlist_result = check_wordlist(password)
+    wordlist_is_valid = check_wordlist(password)
+
+    # Generate wordlist_check message
+    if wordlist_is_valid:
+        wordlist_check_message = "Password does not contain any restricted words."
+    else:
+        wordlist_check_message = "Password contains a restricted word."
+
+    # Determine overall password safety
+    is_safe = int(strength_is_valid and wordlist_is_valid)
+    
 
     # Combine all results into a single response dictionary
     result = {
         "check_results": {
-            "strength_check": strength_result,
-            "wordlist_check": wordlist_result,
-            "password": password
+            "strength_check": strength_check_message,
+            "wordlist_check": wordlist_check_message,
+            "is_safe": is_safe
         }
     }
 
