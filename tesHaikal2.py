@@ -19,14 +19,26 @@ def load_wordlist():
     consql.close()
     return words
 
-# Function to check if the password is in the wordlist
+# Function to check if the password is in the wordlist and update counter
 def check_wordlist(password):
     wordlist = load_wordlist()
+    found_words = set()  # To track already found words and avoid updating multiple times
     for word in wordlist:
         # Check if the word is part of the password
-        if re.search(rf"{re.escape(word)}", password.lower()):
+        if re.search(rf"{re.escape(word)}", password.lower()) and word not in found_words:
+            # Update the counter for this word only once
+            update_word_count(word)
+            found_words.add(word)  # Add the word to the found set
             return False, word  # Return False and the restricted word
     return True, None  # Return True if no restricted words are found
+
+# Function to update the word count in the database
+def update_word_count(word):
+    consql = connect_db()
+    cursor = consql.cursor()
+    cursor.execute("UPDATE wordlist SET count = count + 1 WHERE word = ?", (word,))
+    consql.commit()
+    consql.close()
 
 # Function to check password strength with detailed feedback
 def check_password_strength(password):
@@ -50,60 +62,44 @@ def check_password_strength(password):
         return False, errors  # Password is weak
     return True, []  # Password is strong
 
-######################
-    # Generate strength_check message
-def valStrengh (password): 
-    strength_is_valid, strength_errors = check_password_strength(password)
-    if strength_is_valid:
-        return "Password is strong."
-    else:
-        return "Password is weak. Issues: " + " | ".join(strength_errors)
-
- # Check password against wordlist
-def valWordlist (password):
+# Core function to evaluate the password
+def evaluate_password(password):
+    # Cache the results of wordlist and strength checks
     wordlist_is_valid, restricted_word = check_wordlist(password)
+    strength_is_valid, strength_errors = check_password_strength(password)
 
-    # Generate wordlist_check message
-    if wordlist_is_valid:
-        return "Password does not contain any restricted words."
-    else:
-        return f"Password contains a restricted word: {restricted_word}."
+    strength_check_msg = (
+        "Password is strong." 
+        if strength_is_valid 
+        else f"Password is weak. Issues: " + " | ".join(strength_errors)
+    )
+    # Generate responses
+    wordlist_check_msg = (
+        "Password does not contain any restricted words."
+        if wordlist_is_valid
+        else f"Password contains a restricted word: {restricted_word}."
+    )
+    is_safe = 1 if strength_is_valid and wordlist_is_valid else 0
 
-# Determine overall password safety (Bool)
-def valSafe(password):
-    strength_is_valid, strength_errors = check_password_strength(password) #jangan hapus strength_errors
-    wordlist_is_valid, restricted_word = check_wordlist(password) #jangan hapus restricted_word
-    if strength_is_valid and wordlist_is_valid:
-        return 1
-    else:
-        return 0
+    # Return combined results
+    return {
+        "strength_check": strength_check_msg,
+        "wordlist_check": wordlist_check_msg,
+        "is_safe": is_safe,
+        "password": password,
+    }
 
-
-#######################
+# Flask route
 @app.route('/check_password', methods=['POST'])
 def check_password():
     data = request.get_json()
     password = data.get('password', '')
 
-    # Validate password strength
-    strength_result = check_password_strength(password)
-
-    # Check password against wordlist
-    wordlist_result = check_wordlist(password)
-
-    # Combine all results into a single response dictionary
-    result = {
-        "check_results": {
-            "strength_check": valStrengh(password),
-            "wordlist_check": valWordlist(password),
-            # "breach_check": pwned_result,
-            "is_safe": valSafe(password),
-            "password": password
-        }
-    }
+    # Call the evaluation function
+    result = evaluate_password(password)
 
     # Return the result as JSON
-    return jsonify(result)
+    return jsonify({"check_results": result})
 
 # Run the application
 if __name__ == '__main__':
