@@ -7,17 +7,17 @@ app = Flask(__name__)
 
 # Connect to SQLite database
 def connect_db():
-    consql = sqlite3.connect("D:\Kuliah\Magang\(PI) Diskominfo DIY\Cekpass\wordlist.db")
+    consql = sqlite3.connect("wordlist.db")
     return consql
 
 # Load wordlist from database SQLite
 def load_wordlist():
-    consql = connect_db()
-    cursor = consql.cursor()
-    cursor.execute("SELECT word FROM wordlist")
-    words = [row[0].lower() for row in cursor.fetchall()]
-    consql.close()
+    with connect_db() as consql:
+        cursor = consql.cursor()
+        cursor.execute("SELECT word FROM wordlist")
+        words = [row[0].lower() for row in cursor.fetchall()]
     return words
+
 
 # Function to check if the password is in the wordlist and update counter
 def check_wordlist(password):
@@ -100,6 +100,33 @@ def check_password():
 
     # Return the result as JSON
     return jsonify({"check_results": result})
+
+# Route to add a word to the wordlist
+@app.route('/add_wordlist', methods=['POST'])
+def add_wordlist():
+    data = request.get_json()
+    new_word = data.get('word', '').lower()  # Get word from the request and convert to lowercase
+
+    if not new_word:
+        return jsonify({"error": "Word is required."}), 400
+
+    # Check if word already exists in the wordlist
+    consql = connect_db()
+    cursor = consql.cursor()
+    cursor.execute("SELECT word FROM wordlist WHERE word = ?", (new_word,))
+    existing_word = cursor.fetchone()
+
+    if existing_word:
+        consql.close()
+        return jsonify({"message": "Word already exists in the wordlist."}), 200
+
+    # Add new word to the wordlist
+    cursor.execute("INSERT INTO wordlist (word) VALUES (?)", (new_word,))
+    consql.commit()
+    consql.close()
+
+    return jsonify({"message": f"Word '{new_word}' has been added to the wordlist."}), 201
+
 
 # Run the application
 if __name__ == '__main__':
