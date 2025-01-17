@@ -127,6 +127,29 @@ def add_wordlist():
 
     return jsonify({"message": f"Word '{new_word}' has been added to the wordlist."}), 201
 
+# Route to delete a word from the wordlist
+@app.route('/delete_wordlist', methods=['DELETE'])
+def delete_wordlist():
+    data = request.get_json()
+    word_to_delete = data.get('word', '').lower()
+
+    if not word_to_delete:
+        return jsonify({"error": "Word is required."}), 400
+
+    with connect_db() as consql:
+        cursor = consql.cursor()
+        # Check if the word exists
+        cursor.execute("SELECT word FROM wordlist WHERE word = ?", (word_to_delete,))
+        existing_word = cursor.fetchone()
+
+        if not existing_word:
+            return jsonify({"message": "Word does not exist in the wordlist."}), 404
+
+        # Delete the word
+        cursor.execute("DELETE FROM wordlist WHERE word = ?", (word_to_delete,))
+        consql.commit()
+
+    return jsonify({"message": f"Word '{word_to_delete}' has been deleted from the wordlist."}), 200
 
 # Run the application
 if __name__ == '__main__':
