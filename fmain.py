@@ -9,11 +9,11 @@ app = Flask(__name__)
 
 # Connect to SQLite database
 def connect_db():
-    consql = sqlite3.connect("wordlist.db")
+    consql = sqlite3.connect("wordlists.db")
     cursor = consql.cursor()
     # Create respon table if not exists
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS respon (
+    CREATE TABLE IF NOT EXISTS access_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ip TEXT NOT NULL,
         origin TEXT NOT NULL,
@@ -40,7 +40,7 @@ def save_access_log(ip, origin, response_data):
         response_json = json.dumps(response_data)
         # Save to database
         cursor.execute(
-            'INSERT INTO respon (ip, origin, respon) VALUES (?, ?, ?)',
+            'INSERT INTO access_log (ip, origin, respon) VALUES (?, ?, ?)',
             (ip, origin, response_json)
         )
         consql.commit()

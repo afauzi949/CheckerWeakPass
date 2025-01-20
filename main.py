@@ -2,13 +2,51 @@ from flask import Flask, request, jsonify
 import re
 import string
 import sqlite3
+import json
+import os
 
 app = Flask(__name__)
 
 # Connect to SQLite database
 def connect_db():
-    consql = sqlite3.connect("wordlist.db")
+    consql = sqlite3.connect("wordlists.db")
+    cursor = consql.cursor()
+    # Create respon table if not exists
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS access_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        respon TEXT NOT NULL
+    )
+    ''')
+    # Create wordlist table if not exists
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS wordlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        word TEXT NOT NULL UNIQUE,
+        count INTEGER DEFAULT 0
+    )
+    ''')
+    consql.commit()
     return consql
+
+# Save access log to respon table
+def save_access_log(ip, origin, response_data):
+    try:
+        consql = connect_db()
+        cursor = consql.cursor()
+        # Convert response data to JSON string
+        response_json = json.dumps(response_data)
+        # Save to database
+        cursor.execute(
+            'INSERT INTO access_log (ip, origin, respon) VALUES (?, ?, ?)',
+            (ip, origin, response_json)
+        )
+        consql.commit()
+        consql.close()
+    except Exception as e:
+        print(f"Error saving access log: {e}")
 
 # Load wordlist from database SQLite
 def load_wordlist():
@@ -17,7 +55,6 @@ def load_wordlist():
         cursor.execute("SELECT word FROM wordlist")
         words = [row[0].lower() for row in cursor.fetchall()]
     return words
-
 
 # Function to check if the password is in the wordlist and update counter
 def check_wordlist(password):
@@ -95,8 +132,15 @@ def check_password():
     data = request.get_json()
     password = data.get('password', '')
 
+    # Get IP and origin for logging
+    ip = request.remote_addr
+    origin = request.headers.get('Origin', 'Unknown')
+
     # Call the evaluation function
     result = evaluate_password(password)
+
+    # Save access log
+    save_access_log(ip, origin, result)
 
     # Return the result as JSON
     return jsonify({"check_results": result})
