@@ -1,0 +1,182 @@
+from flask import Flask, request, jsonify
+import re
+import string
+import json
+import os
+from flask_sqlalchemy import SQLAlchemy
+from os import environ
+
+app = Flask(__name__)
+
+# Configure PostgreSQL URI
+app.config['SQLALCHEMY_DATABASE_URI'] = environ.get('DB_URL')
+
+db = SQLAlchemy(app)
+
+# Models
+class AccessLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(255), nullable=False)
+    origin = db.Column(db.String(255), nullable=False)
+    respon = db.Column(db.Text, nullable=False)
+
+class Wordlist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    word = db.Column(db.String(255), unique=True, nullable=False)
+    count = db.Column(db.Integer, default=0)
+
+# Initialize the database
+with app.app_context():
+    db.create_all()  # Creates tables if they don't exist
+
+# Save access log to respon table
+def save_access_log(ip, origin, response_data):
+    try:
+        # Convert response data to JSON string
+        response_json = json.dumps(response_data)
+        
+        # Save to database
+        new_log = AccessLog(ip=ip, origin=origin, respon=response_json)
+        db.session.add(new_log)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error saving access log: {e}")
+
+# Load wordlist from PostgreSQL database
+def load_wordlist():
+    words = [word.word.lower() for word in Wordlist.query.all()]
+    return words
+
+# Function to check if the password is in the wordlist and update counter
+def check_wordlist(password):
+    wordlist = load_wordlist()
+    found_words = set()  # To track already found words and avoid updating multiple times
+    for word in wordlist:
+        # Check if the word is part of the password
+        if re.search(rf"{re.escape(word)}", password.lower()) and word not in found_words:
+            # Update the counter for this word only once
+            update_word_count(word)
+            found_words.add(word)  # Add the word to the found set
+            return False, word  # Return False and the restricted word
+    return True, None  # Return True if no restricted words are found
+
+# Function to update the word count in the database
+def update_word_count(word):
+    word_entry = Wordlist.query.filter_by(word=word).first()
+    if word_entry:
+        word_entry.count += 1
+        db.session.commit()
+
+# Function to check password strength with detailed feedback
+def check_password_strength(password):
+    errors = []
+
+    if len(password) < 12:
+        errors.append("Password should be at least 12 characters long.")
+    if not re.search(r'[A-Z]', password):
+        errors.append("Password should contain at least one uppercase letter.")
+    if not re.search(r'[a-z]', password):
+        errors.append("Password should contain at least one lowercase letter.")
+    if not re.search(r'[0-9]', password):
+        errors.append("Password should contain at least one number.")
+    if not any(char in string.punctuation for char in password):
+        errors.append("Password should contain at least one special character.")
+    if re.search(r'(.)\1{3,}', password):
+        errors.append("Password contains too many repeated characters.")
+    if re.search(r'(012|123|234|345|456|567|678|789|987|876|765|654|543|432|321)', password):
+        errors.append("Password contains sequential numbers.")
+    if errors:
+        return False, errors  # Password is weak
+    return True, []  # Password is strong
+
+# Core function to evaluate the password
+def evaluate_password(password):
+    # Cache the results of wordlist and strength checks
+    wordlist_is_valid, restricted_word = check_wordlist(password)
+    strength_is_valid, strength_errors = check_password_strength(password)
+
+    strength_check_msg = (
+        "Password is strong." 
+        if strength_is_valid 
+        else f"Password is weak. Issues: " + " | ".join(strength_errors)
+    )
+    # Generate responses
+    wordlist_check_msg = (
+        "Password does not contain any restricted words."
+        if wordlist_is_valid
+        else f"Password contains a restricted word: {restricted_word}."
+    )
+    is_safe = 1 if strength_is_valid and wordlist_is_valid else 0
+
+    # Return combined results
+    return {
+        "strength_check": strength_check_msg,
+        "wordlist_check": wordlist_check_msg,
+        "is_safe": is_safe,
+        "password": password,
+    }
+
+# Flask route
+@app.route('/check_password', methods=['POST'])
+def check_password():
+    data = request.get_json()
+    password = data.get('password', '')
+
+    # Get IP and origin for logging
+    ip = request.remote_addr
+    origin = request.headers.get('Origin', 'Unknown')
+
+    # Call the evaluation function
+    result = evaluate_password(password)
+
+    # Save access log
+    save_access_log(ip, origin, result)
+
+    # Return the result as JSON
+    return jsonify({"check_results": result})
+
+# Route to add a word to the wordlist
+@app.route('/add_wordlist', methods=['POST'])
+def add_wordlist():
+    data = request.get_json()
+    new_word = data.get('word', '').lower()  # Get word from the request and convert to lowercase
+
+    if not new_word:
+        return jsonify({"error": "Word is required."}), 400
+
+    # Check if word already exists in the wordlist
+    existing_word = Wordlist.query.filter_by(word=new_word).first()
+
+    if existing_word:
+        return jsonify({"message": "Word already exists in the wordlist."}), 200
+
+    # Add new word to the wordlist
+    new_word_entry = Wordlist(word=new_word)
+    db.session.add(new_word_entry)
+    db.session.commit()
+
+    return jsonify({"message": f"Word '{new_word}' has been added to the wordlist."}), 201
+
+# Route to delete a word from the wordlist
+@app.route('/delete_wordlist', methods=['DELETE'])
+def delete_wordlist():
+    data = request.get_json()
+    word_to_delete = data.get('word', '').lower()
+
+    if not word_to_delete:
+        return jsonify({"error": "Word is required."}), 400
+
+    word_entry = Wordlist.query.filter_by(word=word_to_delete).first()
+
+    if not word_entry:
+        return jsonify({"message": "Word does not exist in the wordlist."}), 404
+
+    # Delete the word
+    db.session.delete(word_entry)
+    db.session.commit()
+
+    return jsonify({"message": f"Word '{word_to_delete}' has been deleted from the wordlist."}), 200
+
+# Run the application
+if __name__ == '__main__':
+    app.run(debug=True)
