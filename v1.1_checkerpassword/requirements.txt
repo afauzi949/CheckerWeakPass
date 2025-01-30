@@ -1,7 +1,0 @@
-flask
-flask-sqlalchemy
-psycopg2-binary
-redis
-flask-limiter
-gunicorn
-python-dotenv
