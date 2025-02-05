@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from flask import request, jsonify, render_template
 from config import db
 import re
 import string
@@ -128,3 +128,7 @@ def init_routes(app):
         db.session.commit()
 
         return jsonify({"message": f"Word '{word_to_delete}' has been deleted from the wordlist."}), 200
+    
+    @app.route('/')
+    def home():
+        return render_template("index.html")
