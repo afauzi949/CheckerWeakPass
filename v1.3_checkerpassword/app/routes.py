@@ -127,4 +127,4 @@ def init_routes(app):
         db.session.delete(word_entry)
         db.session.commit()
 
-        return jsonify({"message": f"Word '{word_to_delete}' has been deleted from the wordlist."}), 
+        return jsonify({"message": f"Word '{word_to_delete}' has been deleted from the wordlist."}), 200
